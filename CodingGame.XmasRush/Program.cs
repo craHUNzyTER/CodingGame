@@ -214,6 +214,7 @@ namespace CodingGame.XmasRush
         {
             TurnNumber = 1;
             PreviousRoundInfos = new List<RoundInfo>();
+            Map = new Tile[7, 7];
         }
 
         public static void NextRound()
@@ -226,7 +227,7 @@ namespace CodingGame.XmasRush
         public static int TurnNumber { get; private set; }
         public static TurnType TurnType { get; set; }
 
-        public static Coordinate[] Map { get; set; }
+        public static Tile[,] Map { get; set; }
 
         public static Player MyPlayer { get; set; }
         public static Player OpponentPlayer { get; set; }
@@ -288,6 +289,8 @@ namespace CodingGame.XmasRush
         public bool Right { get; private set; }
         public bool Down { get; private set; }
         public bool Left { get; private set; }
+        public Item Item { get; private set; }
+        public bool HasItem => Item != null;
 
         public Tile(Coordinate coordinate, bool up, bool right, bool down, bool left)
         {
@@ -296,6 +299,17 @@ namespace CodingGame.XmasRush
             Right = right;
             Down = down;
             Left = left;
+            Item = null;
+        }
+
+        public void SetItem(Item item)
+        {
+            Item = item;
+        }
+
+        public override string ToString()
+        {
+            return $"Coordinate: {Coordinate}, Up = {Up}, Right = {Right}, Down = {Down}, Left = {Left}, Item: {Item?.Name}";
         }
     }
 
@@ -346,7 +360,7 @@ namespace CodingGame.XmasRush
     {
         public const int MaxStepsCount = 20;
 
-        public const int MyId = 0;
+        public const int MyPlayerId = 0;
         public const int OpponentId = 1;
 
         public const int LowestBorderCoordinate = 0;
@@ -379,17 +393,9 @@ namespace CodingGame.XmasRush
         {
             // Read turn type
             ParseTurnType();
-            //Console.Error.WriteLine($"Turn type: {GameData.TurnType}");
 
             // Read map
-            for (int i = 0; i < 7; i++)
-            {
-                _inputs = Console.ReadLine().Split(' ');
-                for (int j = 0; j < 7; j++)
-                {
-                    string tile = _inputs[j];
-                }
-            }
+            ParseMap();
 
             // Read players' info
             ParsePlayersInfo();
@@ -404,7 +410,7 @@ namespace CodingGame.XmasRush
             //Console.Error.WriteLine($"Quests count: {GameData.Quests.Count}");
         }
 
-        public static void ParseTurnType()
+        static void ParseTurnType()
         {
             int turnType = int.Parse(Console.ReadLine());
 
@@ -421,7 +427,27 @@ namespace CodingGame.XmasRush
             }
         }
 
-        public static void ParsePlayersInfo()
+        static void ParseMap()
+        {
+            for (int i = 0; i < 7; i++)
+            {
+                _inputs = Console.ReadLine().Split(' ');
+                for (int j = 0; j < 7; j++)
+                {
+                    string tileInput = _inputs[j];
+
+                    bool up = tileInput[0] == '1' ? true : false;
+                    bool right = tileInput[1] == '1' ? true : false;
+                    bool down = tileInput[2] == '1' ? true : false;
+                    bool left = tileInput[3] == '1' ? true : false;
+
+                    Tile tile = new Tile(new Coordinate(j, i), up, right, down, left);
+                    GameData.Map[tile.Coordinate.X, tile.Coordinate.Y] = tile;
+                }
+            }
+        }
+
+        static void ParsePlayersInfo()
         {
             _inputs = Console.ReadLine().Split(' ');
             int myQuestsCount = int.Parse(_inputs[0]); // the total number of quests for a player (hidden and revealed)
@@ -440,7 +466,7 @@ namespace CodingGame.XmasRush
             GameData.OpponentPlayer = new Player(opponentQuestsCount, new Tile(new Coordinate(opponentX, opponentY), false, false, false, false));
         }
 
-        public static void ParseItems()
+        static void ParseItems()
         {
             int itemsCount = int.Parse(Console.ReadLine()); // the total number of items available on board and on player tiles
             GameData.Items = new List<Item>(itemsCount);
@@ -454,14 +480,21 @@ namespace CodingGame.XmasRush
                 int playerId = int.Parse(_inputs[3]);
 
                 Item item = new Item(name, new Coordinate(x, y), playerId);
+
+                if (item.IsOnBoard() && item.IsMyItem())
+                {
+                    Tile tile = GameData.Map[x, y];
+                    tile.SetItem(item);
+                }
+
                 GameData.Items.Add(item);
             }
 
-            GameData.MyItems = GameData.Items.Where(i => i.PlayerId == Constants.MyId).ToList();
-            GameData.OpponentItems = GameData.Items.Where(i => i.PlayerId == Constants.OpponentId).ToList();
+            GameData.MyItems = GameData.Items.Where(i => i.IsMyItem()).ToList();
+            GameData.OpponentItems = GameData.Items.Where(i => i.IsOpponentItem()).ToList();
         }
 
-        public static void ParseQuests()
+        static void ParseQuests()
         {
             int questsCount = int.Parse(Console.ReadLine()); // the total number of revealed quests for both players
             GameData.Quests = new List<Quest>(questsCount);
@@ -478,7 +511,7 @@ namespace CodingGame.XmasRush
                 GameData.Quests.Add(quest);
             }
 
-            GameData.MyQuests = GameData.Quests.Where(i => i.PlayerId == Constants.MyId).ToList();
+            GameData.MyQuests = GameData.Quests.Where(i => i.PlayerId == Constants.MyPlayerId).ToList();
             GameData.OpponentQuests = GameData.Quests.Where(i => i.PlayerId == Constants.OpponentId).ToList();
         }
     }
@@ -588,6 +621,16 @@ namespace CodingGame.XmasRush
         public static bool IsInMyHand(this Item item)
         {
             return item.Coordinate.IsInMyHand();
+        }
+
+        public static bool IsMyItem(this Item item)
+        {
+            return item.PlayerId == Constants.MyPlayerId;
+        }
+
+        public static bool IsOpponentItem(this Item item)
+        {
+            return item.PlayerId == Constants.OpponentId;
         }
 
         #endregion Item
