@@ -15,12 +15,18 @@ namespace CodingGame.XmasRush
     {
         static void Main(string[] args)
         {
+            GameData.Initialize();
+
             // game loop
             while (true)
             {
                 Input.Parse();
 
+                GameData.CurrentRoundInfo = new RoundInfo(GameData.TurnType, GameData.TurnNumber);
+
                 Game.Play();
+
+                GameData.NextRound();
             }
         }
     }
@@ -48,46 +54,32 @@ namespace CodingGame.XmasRush
             List<Item> items = GameData.MyQuests.Select(x => x.Item).ToList();
             Coordinate myPlayerCoordinate = GameData.MyPlayer.Tile.Coordinate;
 
-            Console.Error.WriteLine("Quest for next items:");
-            foreach (Item item in items)
-            {
-                Console.Error.WriteLine(item);
-            }
-
             if (items.Any(x => x.IsInMyHand()))
             {
                 Item itemInMyHand = items.First(x => x.IsInMyHand());
 
-                Console.Error.WriteLine($"Item {itemInMyHand} is in my hand.");
-
                 if (myPlayerCoordinate.IsOnBorder())
                 {
-                    Console.Error.WriteLine("My player is on border.");
-
                     return CalculatePushOfMyItemFromMyHandToMyPlayer(myPlayerCoordinate);
                 }
 
-                Console.Error.WriteLine("Item in hand & player isn't on the border.");
-
                 // TODO: Push item not on player row/column, because it can produce cycle
-                return GetPushIdAndDirectionForCoordinate(myPlayerCoordinate);
+                return GetPushIdAndDirectionToBorder(myPlayerCoordinate);
                 // return (3, Direction.RIGHT);
             }
             else if (!myPlayerCoordinate.IsOnBorder())
             {
-                return GetPushIdAndDirectionForCoordinate(myPlayerCoordinate);
+                return GetPushIdAndDirectionToBorder(myPlayerCoordinate);
             }
 
-            IEnumerable<Item> itemsOnBoard = items.Where(x => x.IsOnBoard());
-            Coordinate itemCoordinate = GetCoordinateClosestToBorder(itemsOnBoard.Select(x => x.Coordinate));
-            return GetPushIdAndDirectionForCoordinate(itemCoordinate);
+            Item itemToPush = GetItemForPushToBorder(items);
+            GameData.CurrentRoundInfo.SelectedItemForPush = itemToPush;
+
+            return GetPushIdAndDirectionToBorder(itemToPush.Coordinate);
         }
 
         static (int id, Direction direction) CalculatePushOfMyItemFromMyHandToMyPlayer(Coordinate myPlayerCoordinate)
         {
-            Console.Error.WriteLine("Calculate Push Of My Item From My Hand To My Player");
-            Console.Error.WriteLine($"My player coordinate: {myPlayerCoordinate}");
-
             if (myPlayerCoordinate.IsHorizontalBorder())
             {
                 if (myPlayerCoordinate.IsTopBorder())
@@ -108,9 +100,6 @@ namespace CodingGame.XmasRush
 
         static (int id, int shortestDistance, Direction direction) CalculatePushOfCoordinateToBorders(Coordinate itemCoordinate)
         {
-            Console.Error.WriteLine("Calculate Push Of Coordinate To Borders");
-            Console.Error.WriteLine($"Item coordinate: {itemCoordinate}");
-
             int shortestDistance = 3;
             int id = 3;
             Direction direction = Direction.RIGHT;
@@ -150,36 +139,67 @@ namespace CodingGame.XmasRush
             return (id, shortestDistance, direction);
         }
 
-        static (int id, Direction direction) GetPushIdAndDirectionForCoordinate(Coordinate itemCoordinate)
+        static (int id, Direction direction) GetPushIdAndDirectionToBorder(Coordinate itemCoordinate)
         {
             (int id, int shortestDistance, Direction direction) = CalculatePushOfCoordinateToBorders(itemCoordinate);
 
             return (id, direction);
         }
 
-        static int GetShortestDistanceToBorderForTile(Coordinate itemCoordinate)
+        static int GetShortestDistanceToBorder(Coordinate itemCoordinate)
         {
             (int id, int shortestDistance, Direction direction) = CalculatePushOfCoordinateToBorders(itemCoordinate);
 
             return shortestDistance;
         }
 
-        static Coordinate GetCoordinateClosestToBorder(IEnumerable<Coordinate> coordinates)
+        static Item GetItemClosestToBorder(IEnumerable<Item> items)
         {
-            Coordinate coordinate = coordinates.First();
-            int shortestDistance = GetShortestDistanceToBorderForTile(coordinate);
+            Item item = items.First();
+            int shortestDistance = GetShortestDistanceToBorder(item.Coordinate);
 
-            foreach (Coordinate i in coordinates.Skip(1))
+            foreach (Item i in items.Skip(1))
             {
-                int newDistance = GetShortestDistanceToBorderForTile(i);
+                int newDistance = GetShortestDistanceToBorder(i.Coordinate);
 
                 if (newDistance < shortestDistance)
                 {
-                    coordinate = i;
+                    item = i;
                 }
             }
 
-            return coordinate;
+            return item;
+        }
+
+        static Item GetItemForPushToBorder(IEnumerable<Item> items)
+        {
+            IEnumerable<Item> itemsOnBoard = items.Where(x => x.IsOnBoard());
+            Item itemToPush = GetItemClosestToBorder(itemsOnBoard);
+
+            if (GameData.TurnNumber > 1)
+            {
+                Item previousPushItem = GameData.PreviousRoundInfos.Single(x => x.TurnNumber == GameData.TurnNumber - 2).SelectedItemForPush;
+
+                if (previousPushItem == null)
+                {
+                    Console.Error.WriteLine($"Item in info wasn't found.");
+                }
+                else
+                {
+                    if (itemToPush.Name == previousPushItem.Name && itemToPush.Coordinate.X == previousPushItem.Coordinate.X && itemToPush.Coordinate.Y == previousPushItem.Coordinate.Y)
+                    {
+                        Console.Error.WriteLine($"Item '{previousPushItem.Name}' wasn't moved.");
+
+                        if (itemsOnBoard.Count() > 1)
+                        {
+                            itemToPush = GetItemClosestToBorder(itemsOnBoard.Where(x => x.Name != previousPushItem.Name));
+                            Console.Error.WriteLine($"Take next one {itemToPush.Name}.");
+                        }
+                    }
+                }
+            }
+
+            return itemToPush;
         }
 
         #endregion Push turn
@@ -187,6 +207,20 @@ namespace CodingGame.XmasRush
 
     static class GameData
     {
+        public static void Initialize()
+        {
+            TurnNumber = 1;
+            PreviousRoundInfos = new List<RoundInfo>();
+        }
+
+        public static void NextRound()
+        {
+            TurnNumber++;
+            RoundInfo previousRoundInfo = CurrentRoundInfo.Copy();
+            PreviousRoundInfos.Add(previousRoundInfo);
+        }
+
+        public static int TurnNumber { get; private set; }
         public static TurnType TurnType { get; set; }
 
         public static Coordinate[] Map { get; set; }
@@ -198,9 +232,33 @@ namespace CodingGame.XmasRush
         public static List<Item> MyItems { get; set; }
         public static List<Item> OpponentItems { get; set; }
 
+        public static RoundInfo CurrentRoundInfo { get; set; }
+        public static List<RoundInfo> PreviousRoundInfos { get;  private set; }
+
         public static List<Quest> Quests { get; set; }
         public static List<Quest> MyQuests { get; set; }
         public static List<Quest> OpponentQuests { get; set; }
+    }
+
+    class RoundInfo
+    {
+        public TurnType TurnType { get; private set; }
+        public int TurnNumber { get; private set; }
+        public Item SelectedItemForPush { get; set; }
+
+        public RoundInfo(TurnType turnType, int turnNumber)
+        {
+            TurnType = turnType;
+            TurnNumber = turnNumber;
+        }
+
+        public RoundInfo Copy()
+        {
+            return new RoundInfo(TurnType, TurnNumber)
+            {
+                SelectedItemForPush = SelectedItemForPush
+            };
+        }
     }
 
     class Coordinate
@@ -273,7 +331,6 @@ namespace CodingGame.XmasRush
     {
         public Item Item { get; private set; }
         public int PlayerId { get; private set; }
-
 
         public Quest(Item item, int playerId)
         {
