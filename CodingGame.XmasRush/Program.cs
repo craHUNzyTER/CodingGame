@@ -45,32 +45,70 @@ namespace CodingGame.XmasRush
 
         static (int id, Direction direction) CalculatePush()
         {
-            Coordinate itemCoordinate = GameData.MyQuests.First().Item.Coordinate;
-            if (itemCoordinate.IsOutsideBoard())
+            List<Item> items = GameData.MyQuests.Select(x => x.Item).ToList();
+            Coordinate myPlayerCoordinate = GameData.MyPlayer.Tile.Coordinate;
+
+            Console.Error.WriteLine("Quest for next items:");
+            foreach (Item item in items)
             {
-                Console.Error.WriteLine("Item is outside board.");
-
-                if (itemCoordinate.IsInMyHand())
-                {
-                    Console.Error.WriteLine("Item is in my hand.");
-
-                    Coordinate myPlayerCoordinate = GameData.MyPlayer.Tile.Coordinate;
-                    if (myPlayerCoordinate.IsOnBorder())
-                    {
-                        Console.Error.WriteLine("My player is on border.");
-
-                        return CalculatePushOfMyItemFromMyHandOnMyPlayer(myPlayerCoordinate, itemCoordinate);
-                    }
-                }
-
-                return (3, Direction.RIGHT);
+                Console.Error.WriteLine(item);
             }
 
-            return CalculatePushOfMyItemInFrontOfBorders(itemCoordinate);
+            if (items.Any(x => x.IsInMyHand()))
+            {
+                Item itemInMyHand = items.First(x => x.IsInMyHand());
+
+                Console.Error.WriteLine($"Item {itemInMyHand} is in my hand.");
+
+                if (myPlayerCoordinate.IsOnBorder())
+                {
+                    Console.Error.WriteLine("My player is on border.");
+
+                    return CalculatePushOfMyItemFromMyHandToMyPlayer(myPlayerCoordinate);
+                }
+
+                Console.Error.WriteLine("Item in hand & player isn't on the border.");
+
+                // TODO: Push item not on player row/column, because it can produce cycle
+                return GetPushIdAndDirectionForCoordinate(myPlayerCoordinate);
+                // return (3, Direction.RIGHT);
+            }
+            else if (!myPlayerCoordinate.IsOnBorder())
+            {
+                return GetPushIdAndDirectionForCoordinate(myPlayerCoordinate);
+            }
+
+            IEnumerable<Item> itemsOnBoard = items.Where(x => x.IsOnBoard());
+            Coordinate itemCoordinate = GetCoordinateClosestToBorder(itemsOnBoard.Select(x => x.Coordinate));
+            return GetPushIdAndDirectionForCoordinate(itemCoordinate);
         }
 
-        static (int id, Direction direction) CalculatePushOfMyItemInFrontOfBorders(Coordinate itemCoordinate)
+        static (int id, Direction direction) CalculatePushOfMyItemFromMyHandToMyPlayer(Coordinate myPlayerCoordinate)
         {
+            Console.Error.WriteLine("Calculate Push Of My Item From My Hand To My Player");
+            Console.Error.WriteLine($"My player coordinate: {myPlayerCoordinate}");
+
+            if (myPlayerCoordinate.IsHorizontalBorder())
+            {
+                if (myPlayerCoordinate.IsTopBorder())
+                {
+                    return (myPlayerCoordinate.X, Direction.UP);
+                }
+
+                return (myPlayerCoordinate.X, Direction.DOWN);
+            }
+
+            if (myPlayerCoordinate.IsLeftBorder())
+            {
+                return (myPlayerCoordinate.Y, Direction.LEFT);
+            }
+
+            return (myPlayerCoordinate.Y, Direction.RIGHT);
+        }
+
+        static (int id, int shortestDistance, Direction direction) CalculatePushOfCoordinateToBorders(Coordinate itemCoordinate)
+        {
+            Console.Error.WriteLine("Calculate Push Of Coordinate To Borders");
             Console.Error.WriteLine($"Item coordinate: {itemCoordinate}");
 
             int shortestDistance = 3;
@@ -105,33 +143,43 @@ namespace CodingGame.XmasRush
             if (newDistance < shortestDistance)
             {
                 id = itemCoordinate.X;
+                shortestDistance = newDistance;
                 direction = Direction.UP;
             }
+
+            return (id, shortestDistance, direction);
+        }
+
+        static (int id, Direction direction) GetPushIdAndDirectionForCoordinate(Coordinate itemCoordinate)
+        {
+            (int id, int shortestDistance, Direction direction) = CalculatePushOfCoordinateToBorders(itemCoordinate);
 
             return (id, direction);
         }
 
-        static (int id, Direction direction) CalculatePushOfMyItemFromMyHandOnMyPlayer(Coordinate myPlayerCoordinate, Coordinate itemCoordinate)
+        static int GetShortestDistanceToBorderForTile(Coordinate itemCoordinate)
         {
-            Console.Error.WriteLine($"My player coordinate: {myPlayerCoordinate}");
-            Console.Error.WriteLine($"Item coordinate: {itemCoordinate}");
+            (int id, int shortestDistance, Direction direction) = CalculatePushOfCoordinateToBorders(itemCoordinate);
 
-            if (myPlayerCoordinate.IsHorizontalBorder())
+            return shortestDistance;
+        }
+
+        static Coordinate GetCoordinateClosestToBorder(IEnumerable<Coordinate> coordinates)
+        {
+            Coordinate coordinate = coordinates.First();
+            int shortestDistance = GetShortestDistanceToBorderForTile(coordinate);
+
+            foreach (Coordinate i in coordinates.Skip(1))
             {
-                if (myPlayerCoordinate.IsTopBorder())
+                int newDistance = GetShortestDistanceToBorderForTile(i);
+
+                if (newDistance < shortestDistance)
                 {
-                    return (myPlayerCoordinate.X, Direction.UP);
+                    coordinate = i;
                 }
-
-                return (myPlayerCoordinate.X, Direction.DOWN);
             }
 
-            if (myPlayerCoordinate.IsLeftBorder())
-            {
-                return (myPlayerCoordinate.Y, Direction.LEFT);
-            }
-
-            return (myPlayerCoordinate.Y, Direction.RIGHT);
+            return coordinate;
         }
 
         #endregion Push turn
@@ -213,6 +261,11 @@ namespace CodingGame.XmasRush
             Name = name;
             Coordinate = coordinate;
             PlayerId = playerId;
+        }
+
+        public override string ToString()
+        {
+            return $"{Name}, {Coordinate}";
         }
     }
 
@@ -394,6 +447,11 @@ namespace CodingGame.XmasRush
     {
         #region Coordinate
 
+        public static bool IsOnBoard(this Coordinate coordinate)
+        {
+            return !coordinate.IsOutsideBoard();
+        }
+
         public static bool IsOutsideBoard(this Coordinate coordinate)
         {
             return coordinate.X < 0
@@ -457,9 +515,19 @@ namespace CodingGame.XmasRush
 
         #region Item
 
+        public static bool IsOnBoard(this Item item)
+        {
+            return item.Coordinate.IsOnBoard();
+        }
+
         public static bool IsOutsideBoard(this Item item)
         {
             return item.Coordinate.IsOutsideBoard();
+        }
+
+        public static bool IsInMyHand(this Item item)
+        {
+            return item.Coordinate.IsInMyHand();
         }
 
         #endregion Item
