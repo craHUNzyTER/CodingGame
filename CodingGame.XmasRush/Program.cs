@@ -43,7 +43,16 @@ namespace CodingGame.XmasRush
             }
             else
             {
-                Output.Pass();
+                (bool isMoving, IReadOnlyList<Direction> moveDirections) = CalculateMove();
+
+                if (isMoving)
+                {
+                    Output.Move(moveDirections);
+                }
+                else
+                {
+                    Output.Pass();
+                }
             }
         }
 
@@ -206,6 +215,15 @@ namespace CodingGame.XmasRush
         }
 
         #endregion Push turn
+
+        #region Move turn
+
+        static (bool isMoving, IReadOnlyList<Direction> moveDirections) CalculateMove()
+        {
+            return (false, Array.Empty<Direction>());
+        }
+
+        #endregion Move turn
     }
 
     static class GameData
@@ -525,9 +543,9 @@ namespace CodingGame.XmasRush
             Console.WriteLine($"PUSH {id} {direction}"); // PUSH <id> <direction>
         }
 
-        public static void Move(Direction direction = Direction.RIGHT) // TODO: Pass params[]
+        public static void Move(IReadOnlyList<Direction> path)
         {
-            Console.WriteLine($"MOVE {direction}"); // MOVE <direction>
+            Console.WriteLine($"MOVE {string.Join(" ", path.Select(x => x.ToString()))}"); // MOVE <direction>
         }
 
         public static void Pass()
