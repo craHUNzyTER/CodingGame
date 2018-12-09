@@ -53,8 +53,14 @@ namespace CodingGame.XmasRush
         {
             List<Item> items = GameData.MyQuests.Select(x => x.Item).ToList();
             Coordinate myPlayerCoordinate = GameData.MyPlayer.Tile.Coordinate;
+            bool isQuestItemInMyHand = items.Any(x => x.IsInMyHand());
 
-            if (items.Any(x => x.IsInMyHand()))
+            if (!myPlayerCoordinate.IsOnBorder() && !isQuestItemInMyHand)
+            {
+                return GetPushIdAndDirectionToBorder(myPlayerCoordinate);
+            }
+
+            if (isQuestItemInMyHand)
             {
                 Item itemInMyHand = items.First(x => x.IsInMyHand());
 
@@ -62,40 +68,37 @@ namespace CodingGame.XmasRush
                 {
                     return CalculatePushOfMyItemFromMyHandToMyPlayer(myPlayerCoordinate);
                 }
-
-                // TODO: Push item not on player row/column, because it can produce cycle
-                return GetPushIdAndDirectionToBorder(myPlayerCoordinate);
-                // return (3, Direction.RIGHT);
             }
-            else if (!myPlayerCoordinate.IsOnBorder())
+
+            if (items.Any(x => x.IsOnBoard()))
             {
-                return GetPushIdAndDirectionToBorder(myPlayerCoordinate);
+                Item itemToPush = GetItemForPushToBorder(items);
+                GameData.CurrentRoundInfo.SelectedItemForPush = itemToPush;
+
+                return GetPushIdAndDirectionToBorder(itemToPush.Coordinate);
             }
 
-            Item itemToPush = GetItemForPushToBorder(items);
-            GameData.CurrentRoundInfo.SelectedItemForPush = itemToPush;
-
-            return GetPushIdAndDirectionToBorder(itemToPush.Coordinate);
+            return (3, Direction.RIGHT);
         }
 
         static (int id, Direction direction) CalculatePushOfMyItemFromMyHandToMyPlayer(Coordinate myPlayerCoordinate)
         {
-            if (myPlayerCoordinate.IsHorizontalBorder())
+            if (myPlayerCoordinate.IsVerticalBorder())
             {
-                if (myPlayerCoordinate.IsTopBorder())
+                if (myPlayerCoordinate.IsLeftBorder())
                 {
-                    return (myPlayerCoordinate.X, Direction.UP);
+                    return (myPlayerCoordinate.Y, Direction.LEFT);
                 }
 
-                return (myPlayerCoordinate.X, Direction.DOWN);
+                return (myPlayerCoordinate.Y, Direction.RIGHT);
             }
 
-            if (myPlayerCoordinate.IsLeftBorder())
+            if (myPlayerCoordinate.IsTopBorder())
             {
-                return (myPlayerCoordinate.Y, Direction.LEFT);
+                return (myPlayerCoordinate.X, Direction.UP);
             }
 
-            return (myPlayerCoordinate.Y, Direction.RIGHT);
+            return (myPlayerCoordinate.X, Direction.DOWN);
         }
 
         static (int id, int shortestDistance, Direction direction) CalculatePushOfCoordinateToBorders(Coordinate itemCoordinate)
