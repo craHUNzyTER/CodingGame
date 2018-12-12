@@ -61,7 +61,7 @@ namespace CodingGame.XmasRush
         static (int id, Direction direction) CalculatePush()
         {
             List<Item> items = GameData.MyQuests.Select(x => x.Item).ToList();
-            Coordinate myPlayerCoordinate = GameData.MyPlayer.Tile.Coordinate;
+            Coordinate myPlayerCoordinate = GameData.MyPlayer.Position.Coordinate;
             bool isQuestItemInMyHand = items.Any(x => x.IsInMyHand());
 
             if (!myPlayerCoordinate.IsOnBorder() && !isQuestItemInMyHand)
@@ -288,6 +288,8 @@ namespace CodingGame.XmasRush
         public int X { get; private set; }
         public int Y { get; private set; }
 
+        #region Constructors and overriden methods
+
         public Coordinate(int x, int y)
         {
             X = x;
@@ -298,48 +300,99 @@ namespace CodingGame.XmasRush
         {
             return $"X={X}, Y={Y}";
         }
+
+        public override bool Equals(object obj)
+        {
+            Coordinate other = obj as Coordinate;
+
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (X == other.X && Y == other.Y)
+                return true;
+
+            return false;
+        }
+
+        public override int GetHashCode()
+        {
+            return 7333 ^ X.GetHashCode() ^ Y.GetHashCode();
+        }
+
+        #endregion Constructors and overriden methods
     }
 
     class Tile
     {
         public Coordinate Coordinate { get; private set; }
-        public bool Up { get; private set; }
-        public bool Right { get; private set; }
-        public bool Down { get; private set; }
-        public bool Left { get; private set; }
+        public bool HasUpPath { get; private set; }
+        public bool HasRightPath { get; private set; }
+        public bool HasDownPath { get; private set; }
+        public bool HasLeftPath { get; private set; }
         public Item Item { get; private set; }
         public bool HasItem => Item != null;
+        public bool HasMyItem => HasItem && Item.IsMyItem();
 
-        public Tile(Coordinate coordinate, bool up, bool right, bool down, bool left)
-        {
-            Coordinate = coordinate;
-            Up = up;
-            Right = right;
-            Down = down;
-            Left = left;
-            Item = null;
-        }
+        public List<Tile> Siblings { get; private set; }
 
         public void SetItem(Item item)
         {
             Item = item;
         }
 
+        public void AddSibling(Tile sibling)
+        {
+            Siblings.Add(sibling);
+        }
+
+        #region Constructors and overriden methods
+
+        public Tile(Coordinate coordinate, string tilePaths)
+        {
+            Coordinate = coordinate;
+            Item = null;
+            Siblings = new List<Tile>();
+
+            HasUpPath = tilePaths[0] == '1' ? true : false;
+            HasRightPath = tilePaths[1] == '1' ? true : false;
+            HasDownPath = tilePaths[2] == '1' ? true : false;
+            HasLeftPath = tilePaths[3] == '1' ? true : false;
+        }
+
         public override string ToString()
         {
-            return $"Coordinate: {Coordinate}, Up = {Up}, Right = {Right}, Down = {Down}, Left = {Left}, Item: {Item?.Name}";
+            return $"Coordinate: {Coordinate}, Up = {HasUpPath}, Right = {HasRightPath}, Down = {HasDownPath}, Left = {HasLeftPath}, Item: {Item?.Name}";
         }
+
+        public override bool Equals(object obj)
+        {
+            Tile other = obj as Tile;
+
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            return Coordinate == other.Coordinate;
+        }
+
+        public override int GetHashCode()
+        {
+            return 7333 ^ Coordinate.GetHashCode();
+        }
+
+        #endregion Constructors and overriden methods
     }
 
     class Player
     {
         public int TotalQuestsCount { get; private set; }
-        public Tile Tile { get; set; }
+        public Tile Position { get; set; }
+        public Tile TileInHand { get; set; }
 
-        public Player(int totalQuestsCount, Tile tile)
+        public Player(int totalQuestsCount, Tile position, Tile tileInHand)
         {
             TotalQuestsCount = totalQuestsCount;
-            Tile = tile;
+            Position = position;
+            TileInHand = tileInHand;
         }
     }
 
@@ -452,16 +505,59 @@ namespace CodingGame.XmasRush
                 _inputs = Console.ReadLine().Split(' ');
                 for (int j = 0; j < 7; j++)
                 {
-                    string tileInput = _inputs[j];
+                    string tilePaths = _inputs[j];
 
-                    bool up = tileInput[0] == '1' ? true : false;
-                    bool right = tileInput[1] == '1' ? true : false;
-                    bool down = tileInput[2] == '1' ? true : false;
-                    bool left = tileInput[3] == '1' ? true : false;
-
-                    Tile tile = new Tile(new Coordinate(j, i), up, right, down, left);
+                    Tile tile = new Tile(new Coordinate(j, i), tilePaths);
                     GameData.Map[tile.Coordinate.X, tile.Coordinate.Y] = tile;
                 }
+            }
+
+            Tile topSibling;
+            Tile rightSibling;
+            Tile bottomSibling;
+            Tile leftSibling;
+
+            for (int i = 0; i < 7; i++)
+            {
+                for (int j = 0; j < 7; j++)
+                {
+                    Tile tile = GameData.Map[i, j];
+
+                    if (tile.HasUpPath && tile.IsTopBorder() == false)
+                    {
+                        topSibling = GameData.Map[i, j - 1];
+                        if (topSibling.HasDownPath)
+                            tile.AddSibling(topSibling);
+                    }
+
+                    if (tile.HasRightPath && tile.IsRightBorder() == false)
+                    {
+                        rightSibling = GameData.Map[i + 1, j];
+                        if (rightSibling.HasLeftPath)
+                            tile.AddSibling(rightSibling);
+                    }
+
+                    if (tile.HasDownPath && tile.IsBottomBorder() == false)
+                    {
+                        bottomSibling = GameData.Map[i, j + 1];
+                        if (bottomSibling.HasUpPath)
+                            tile.AddSibling(bottomSibling);
+                    }
+
+                    if (tile.HasLeftPath && tile.IsLeftBorder() == false)
+                    {
+                        leftSibling = GameData.Map[i - 1, j];
+                        if (leftSibling.HasRightPath)
+                            tile.AddSibling(leftSibling);
+                    }
+                }
+
+                //Tile testTile = GameData.Map[i, 2];
+                //Console.Error.WriteLine($"Siblings for tile: {testTile}");
+                //foreach(Tile sibling in testTile.Siblings)
+                //{
+                //    Console.Error.WriteLine($"Sibling: {sibling.Coordinate}");
+                //}
             }
         }
 
@@ -471,17 +567,25 @@ namespace CodingGame.XmasRush
             int myQuestsCount = int.Parse(_inputs[0]); // the total number of quests for a player (hidden and revealed)
             int myX = int.Parse(_inputs[1]);
             int myY = int.Parse(_inputs[2]);
-            string myTile = _inputs[3]; // TODO: Parse tile
+            string myTilePaths = _inputs[3];
 
-            GameData.MyPlayer = new Player(myQuestsCount, new Tile(new Coordinate(myX, myY), false, false, false, false));
+            Tile myPosition = GameData.Map[myX, myY];
+            Tile myTileInHand = new Tile(new Coordinate(-1, -1), myTilePaths);
+
+            GameData.MyPlayer = new Player(myQuestsCount, myPosition, myTileInHand);
+            //Console.Error.WriteLine($"My position: {GameData.MyPlayer.Position}");
 
             _inputs = Console.ReadLine().Split(' ');
             int opponentQuestsCount = int.Parse(_inputs[0]); // the total number of quests for a player (hidden and revealed)
             int opponentX = int.Parse(_inputs[1]);
             int opponentY = int.Parse(_inputs[2]);
-            string opponentTile = _inputs[3]; // TODO: Parse tile
+            string opponentTilePaths = _inputs[3];
 
-            GameData.OpponentPlayer = new Player(opponentQuestsCount, new Tile(new Coordinate(opponentX, opponentY), false, false, false, false));
+            Tile opponentPosition = GameData.Map[opponentX, opponentY];
+            Tile opponentTileInHand = new Tile(new Coordinate(-2, -2), opponentTilePaths);
+
+            GameData.OpponentPlayer = new Player(opponentQuestsCount, opponentPosition, opponentTileInHand);
+            //Console.Error.WriteLine($"Opponent position: {GameData.OpponentPlayer.Position}");
         }
 
         static void ParseItems()
@@ -499,10 +603,23 @@ namespace CodingGame.XmasRush
 
                 Item item = new Item(name, new Coordinate(x, y), playerId);
 
-                if (item.IsOnBoard() && item.IsMyItem())
+                if (item.IsOnBoard())
                 {
                     Tile tile = GameData.Map[x, y];
                     tile.SetItem(item);
+                }
+                else
+                {
+                    if (item.IsInMyHand())
+                    {
+                        GameData.MyPlayer.TileInHand.SetItem(item);
+                        Console.Error.WriteLine($"I carry in hands: {item}");
+                    }
+                    else
+                    {
+                        GameData.OpponentPlayer.TileInHand.SetItem(item);
+                        Console.Error.WriteLine($"Opponent carries in hands: {item}");
+                    }
                 }
 
                 GameData.Items.Add(item);
@@ -615,12 +732,31 @@ namespace CodingGame.XmasRush
 
         #endregion Coordinate
 
-        #region Player
+        #region Tile
 
-        public static bool IsOnBorder(this Player player)
+        public static bool IsTopBorder(this Tile tile)
         {
-            return player.Tile.Coordinate.IsOnBorder();
+            return tile.Coordinate.IsTopBorder();
         }
+
+        public static bool IsBottomBorder(this Tile tile)
+        {
+            return tile.Coordinate.IsBottomBorder();
+        }
+
+        public static bool IsLeftBorder(this Tile tile)
+        {
+            return tile.Coordinate.IsLeftBorder();
+        }
+
+        public static bool IsRightBorder(this Tile tile)
+        {
+            return tile.Coordinate.IsRightBorder();
+        }
+
+        #endregion Tile
+
+        #region Player
 
         #endregion Player
 
