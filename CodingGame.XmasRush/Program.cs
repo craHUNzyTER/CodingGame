@@ -45,7 +45,7 @@ namespace CodingGame.XmasRush
             {
                 (bool isMoving, IReadOnlyList<Direction> moveDirections) = CalculateMove();
 
-                if (isMoving)
+                if (isMoving && moveDirections.Any())
                 {
                     Output.Move(moveDirections);
                 }
@@ -220,7 +220,21 @@ namespace CodingGame.XmasRush
 
         static (bool isMoving, IReadOnlyList<Direction> moveDirections) CalculateMove()
         {
+            Tile startTile = GameData.MyPlayer.Position;
+
+            if (startTile.Siblings.Any())
+            {
+                var directions = BuildPath(Array.Empty<Direction>(), startTile);
+
+                return (true, directions);
+            }
+
             return (false, Array.Empty<Direction>());
+        }
+
+        static IReadOnlyList<Direction> BuildPath(IReadOnlyList<Direction> previousPath, Tile currentTile)
+        {
+            return Array.Empty<Direction>();
         }
 
         #endregion Move turn
@@ -325,6 +339,7 @@ namespace CodingGame.XmasRush
     class Tile
     {
         public Coordinate Coordinate { get; private set; }
+        public bool IsVisited { get; private set; }
         public bool HasUpPath { get; private set; }
         public bool HasRightPath { get; private set; }
         public bool HasDownPath { get; private set; }
@@ -345,6 +360,11 @@ namespace CodingGame.XmasRush
             Siblings.Add(sibling);
         }
 
+        public void MarkAsVisited()
+        {
+            IsVisited = true;
+        }
+
         #region Constructors and overriden methods
 
         public Tile(Coordinate coordinate, string tilePaths)
@@ -352,6 +372,7 @@ namespace CodingGame.XmasRush
             Coordinate = coordinate;
             Item = null;
             Siblings = new List<Tile>();
+            IsVisited = false;
 
             HasUpPath = tilePaths[0] == '1' ? true : false;
             HasRightPath = tilePaths[1] == '1' ? true : false;
@@ -399,7 +420,7 @@ namespace CodingGame.XmasRush
     class Item
     {
         public string Name { get; private set; }
-        public Coordinate Coordinate => Tile.Coordinate;
+        public Coordinate Coordinate => Tile?.Coordinate;
         public Tile Tile { get; private set; }
         public int PlayerId { get; private set; }
 
