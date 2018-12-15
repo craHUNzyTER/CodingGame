@@ -399,19 +399,24 @@ namespace CodingGame.XmasRush
     class Item
     {
         public string Name { get; private set; }
-        public Coordinate Coordinate { get; private set; }
+        public Coordinate Coordinate => Tile.Coordinate;
+        public Tile Tile { get; private set; }
         public int PlayerId { get; private set; }
 
-        public Item(string name, Coordinate coordinate, int playerId)
+        public void SetTile(Tile itemTile)
+        {
+            Tile = itemTile;
+        }
+
+        public Item(string name, int playerId)
         {
             Name = name;
-            Coordinate = coordinate;
             PlayerId = playerId;
         }
 
         public override string ToString()
         {
-            return $"{Name}, {Coordinate}";
+            return $"{Name}, {Coordinate?.ToString()}";
         }
     }
 
@@ -601,26 +606,31 @@ namespace CodingGame.XmasRush
                 int y = int.Parse(_inputs[2]);
                 int playerId = int.Parse(_inputs[3]);
 
-                Item item = new Item(name, new Coordinate(x, y), playerId);
+                Tile itemTile;
 
-                if (item.IsOnBoard())
+                Coordinate itemCoordinate = new Coordinate(x, y);
+                Item item = new Item(name, playerId);
+
+                if (itemCoordinate.IsOnBoard())
                 {
-                    Tile tile = GameData.Map[x, y];
-                    tile.SetItem(item);
+                    itemTile = GameData.Map[x, y];
                 }
                 else
                 {
-                    if (item.IsInMyHand())
+                    if (itemCoordinate.IsInMyHand())
                     {
-                        GameData.MyPlayer.TileInHand.SetItem(item);
+                        itemTile = GameData.MyPlayer.TileInHand;
                         Console.Error.WriteLine($"I carry in hands: {item}");
                     }
                     else
                     {
-                        GameData.OpponentPlayer.TileInHand.SetItem(item);
+                        itemTile = GameData.OpponentPlayer.TileInHand;
                         Console.Error.WriteLine($"Opponent carries in hands: {item}");
                     }
                 }
+
+                itemTile.SetItem(item);
+                item.SetTile(itemTile);
 
                 GameData.Items.Add(item);
             }
