@@ -347,6 +347,7 @@ namespace CodingGame.XmasRush
         public Item Item { get; private set; }
         public bool HasItem => Item != null;
         public bool HasMyItem => HasItem && Item.IsMyItem();
+        public bool HasMyQuestItem => HasMyItem && Item.HasQuest;
 
         public List<Tile> Siblings { get; private set; }
 
@@ -419,14 +420,23 @@ namespace CodingGame.XmasRush
 
     class Item
     {
+        private Quest Quest { get; set; }
+
         public string Name { get; private set; }
         public Coordinate Coordinate => Tile?.Coordinate;
         public Tile Tile { get; private set; }
         public int PlayerId { get; private set; }
 
+        public bool HasQuest => Quest != null;
+
         public void SetTile(Tile itemTile)
         {
             Tile = itemTile;
+        }
+
+        public void SetQuest(Quest quest)
+        {
+            Quest = quest;
         }
 
         public Item(string name, int playerId)
@@ -674,6 +684,7 @@ namespace CodingGame.XmasRush
                 Item item = GameData.Items.Single(x => x.Name == itemName && x.PlayerId == playerId);
 
                 Quest quest = new Quest(item, playerId);
+                item.SetQuest(quest);
                 GameData.Quests.Add(quest);
             }
 
