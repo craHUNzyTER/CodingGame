@@ -222,19 +222,72 @@ namespace CodingGame.XmasRush
         {
             Tile startTile = GameData.MyPlayer.Position;
 
-            if (startTile.Siblings.Any())
+            if (startTile.NotVisitedSiblings.Any())
             {
-                var directions = BuildPath(Array.Empty<Direction>(), startTile);
+                var path = BuildPath(startTile).ToList();
+                path.AddReversePath();
 
-                return (true, directions);
+                return (true, path);
             }
 
             return (false, Array.Empty<Direction>());
         }
 
-        static IReadOnlyList<Direction> BuildPath(IReadOnlyList<Direction> previousPath, Tile currentTile)
+        static IReadOnlyList<Direction> BuildPath(Tile startTile)
         {
+            Queue<Tile> queue = new Queue<Tile>();
+
+            startTile.SetPath(Array.Empty<Direction>());
+            startTile.MarkAsVisited();
+            queue.Enqueue(startTile);
+
+            while (queue.TryDequeue(out Tile tile))
+            {
+                if (tile.HasMyQuestItem)
+                    return tile.PathForMove;
+
+                foreach (Tile sibling in tile.NotVisitedSiblings)
+                {
+                    List<Direction> siblingPath = new List<Direction>(tile.PathForMove.Count + 1);
+                    siblingPath.AddRange(tile.PathForMove);
+
+                    Direction moveDirection = GetMoveDirection(tile.Coordinate, sibling.Coordinate);
+                    siblingPath.Add(moveDirection);
+
+                    sibling.SetPath(siblingPath);
+                    sibling.MarkAsVisited();
+                    queue.Enqueue(sibling);
+                }
+            }
+
             return Array.Empty<Direction>();
+        }
+
+        static void AddReversePath(this List<Direction> path)
+        {
+            List<Direction> reversePath = new List<Direction>(path);
+            reversePath.Reverse();
+
+            foreach (Direction direction in reversePath)
+            {
+                path.Add(direction.GetReverseDirection());
+            }
+        }
+
+        static Direction GetMoveDirection(Coordinate from, Coordinate to)
+        {
+            if (from.X == to.X)
+            {
+                if (from.Y > to.Y)
+                    return Direction.UP;
+                else
+                    return Direction.DOWN;
+            }
+
+            if (from.X > to.X)
+                return Direction.LEFT;
+            else
+                return Direction.RIGHT;
         }
 
         #endregion Move turn
@@ -338,6 +391,8 @@ namespace CodingGame.XmasRush
 
     class Tile
     {
+        private List<Tile> Siblings { get; set; }
+
         public Coordinate Coordinate { get; private set; }
         public bool IsVisited { get; private set; }
         public bool HasUpPath { get; private set; }
@@ -348,8 +403,8 @@ namespace CodingGame.XmasRush
         public bool HasItem => Item != null;
         public bool HasMyItem => HasItem && Item.IsMyItem();
         public bool HasMyQuestItem => HasMyItem && Item.HasQuest;
-
-        public List<Tile> Siblings { get; private set; }
+        public IReadOnlyList<Direction> PathForMove { get; private set; }
+        public IEnumerable<Tile> NotVisitedSiblings => Siblings.Where(s => s.IsVisited == false);
 
         public void SetItem(Item item)
         {
@@ -364,6 +419,11 @@ namespace CodingGame.XmasRush
         public void MarkAsVisited()
         {
             IsVisited = true;
+        }
+
+        public void SetPath(IReadOnlyList<Direction> path)
+        {
+            PathForMove = path;
         }
 
         #region Constructors and overriden methods
@@ -839,5 +899,26 @@ namespace CodingGame.XmasRush
         }
 
         #endregion TurnType
+
+        #region Direction
+
+        public static Direction GetReverseDirection(this Direction direction)
+        {
+            switch (direction)
+            {
+                case Direction.UP:
+                    return Direction.DOWN;
+                case Direction.RIGHT:
+                    return Direction.LEFT;
+                case Direction.DOWN:
+                    return Direction.UP;
+                case Direction.LEFT:
+                    return Direction.RIGHT;
+                default:
+                    throw new NotSupportedException();
+            }
+        }
+
+        #endregion Direction
     }
 }
