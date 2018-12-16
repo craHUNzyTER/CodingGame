@@ -261,36 +261,83 @@ namespace CodingGame.XmasRush
 
             if (pathByItems.Count == 2)
             {
-                Item firstItem = pathByItems.First().Value.Count <= pathByItems.Last().Value.Count
+                Item firstItemFromTwo = pathByItems.First().Value.Count <= pathByItems.Last().Value.Count
                     ? pathByItems.First().Key
                     : pathByItems.Last().Key;
-                Item secondItem = pathByItems.First().Value.Count > pathByItems.Last().Value.Count
+                Item secondItemFromTwo = pathByItems.First().Value.Count > pathByItems.Last().Value.Count
                     ? pathByItems.First().Key
                     : pathByItems.Last().Key;
 
                 List<Direction> pathToItems = new List<Direction>();
-                pathToItems.AddRange(pathByItems[firstItem]);
+                pathToItems.AddRange(pathByItems[firstItemFromTwo]);
 
-                Tile newStartTile = firstItem.Tile;
+                Tile newStartTile = firstItemFromTwo.Tile;
 
-                (Tile fake, IReadOnlyList<Direction> pathToSecondItem) = CalculateMoveToQuestItem(newStartTile, secondItem);
+                (Tile fake, IReadOnlyList<Direction> pathToSecondItem) = CalculateMoveToQuestItem(newStartTile, secondItemFromTwo);
                 pathToItems.AddRange(pathToSecondItem);
 
-                Tile endTile = secondItem.Tile;
+                Tile endTile = secondItemFromTwo.Tile;
 
                 return (endTile, pathToItems);
             }
 
-            throw new NotSupportedException();
-            Console.Error.WriteLine($"Player can reach more than one item: {pathByItems.Count}");
+            // Here begins duplicating and very complex and not-optimized and not well-written logic for three items
 
-            int shortestPath = Constants.MaxStepsCount;
+            int shortestPath = pathByItems.First().Value.Count;
+            Item firstItem = pathByItems.First().Key;
+            foreach (var pathByItem in pathByItems.Skip(1))
+            {
+                if (pathByItem.Value.Count < shortestPath)
+                {
+                    shortestPath = pathByItem.Value.Count;
+                    firstItem = pathByItem.Key;
+                }
+            }
 
-            Func<Tile, bool> searchPredicate = t => t.HasMyQuestItem;
+            List<Direction> pathToThreeItems = new List<Direction>();
+            pathToThreeItems.AddRange(pathByItems[firstItem]);
 
-            var path = BuildPath(startTile, searchPredicate);
+            myQuestItems = myQuestItems.Where(i => i.Name != firstItem.Name).ToList();
+            pathByItems.Clear();
 
-            return path;
+            foreach (Item item in myQuestItems)
+            {
+                (Tile endTile, IReadOnlyList<Direction> pathToItem) = CalculateMoveToQuestItem(firstItem.Tile, item);
+                if (pathToItem.Any())
+                    pathByItems[item] = pathToItem.ToList();
+            }
+
+            if (pathByItems.Count == 0)
+            {
+                return (firstItem.Tile, pathToThreeItems);
+            }
+
+            if (pathByItems.Count == 1)
+            {
+                Tile endTile = pathByItems.First().Key.Tile;
+                pathToThreeItems.AddRange(pathByItems.First().Value);
+
+                return (endTile, pathToThreeItems);
+            }
+            else
+            {
+                Item firstItemFromTwo = pathByItems.First().Value.Count <= pathByItems.Last().Value.Count
+                    ? pathByItems.First().Key
+                    : pathByItems.Last().Key;
+                Item secondItemFromTwo = pathByItems.First().Value.Count > pathByItems.Last().Value.Count
+                    ? pathByItems.First().Key
+                    : pathByItems.Last().Key;
+
+                pathToThreeItems.AddRange(pathByItems[firstItemFromTwo]);
+
+                Tile newStartTile = firstItemFromTwo.Tile;
+
+                (Tile fake, IReadOnlyList<Direction> pathToSecondItem) = CalculateMoveToQuestItem(newStartTile, secondItemFromTwo);
+                pathToThreeItems.AddRange(pathToSecondItem);
+                Tile endTile = secondItemFromTwo.Tile;
+
+                return (endTile, pathToThreeItems);
+            }
         }
 
         static (Tile endTile, IReadOnlyList<Direction> path) CalculateMoveToQuestItem(Tile startTile, Item item)
