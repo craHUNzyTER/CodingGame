@@ -217,48 +217,71 @@ namespace CodingGame.XmasRush
 
             if (startTile.NotVisitedSiblings.Any())
             {
-                var path = CalculateMoveToQuestItems(startTile).ToList();
-                if (path.Any())
+                (Tile endTileAfterItems, IReadOnlyList<Direction> pathToItems) = CalculateMoveToQuestItems(startTile);
+                if (pathToItems.Any())
                 {
-                    path.AddReversePath();
-                    return (true, path);
+                    (Tile fake1, IReadOnlyList<Direction> pathToBorderAfterItems) = CalculateMoveToBorder(endTileAfterItems);
+
+                    var finalPath = pathToItems.ToList();
+
+                    finalPath.AddRange(pathToBorderAfterItems);
+                    return (true, finalPath);
                 }
 
-                ResetVisitedStatus();
-
-                path = CalculateMoveToBorder(startTile).ToList();
-                return (true, path);
+                (Tile fake2, IReadOnlyList<Direction> pathToBorder) = CalculateMoveToBorder(startTile);
+                return (true, pathToBorder);
             }
 
             return (false, Array.Empty<Direction>());
         }
 
-        static IReadOnlyList<Direction> CalculateMoveToQuestItems(Tile startTile)
+        static (Tile endTile, IReadOnlyList<Direction> path) CalculateMoveToQuestItems(Tile startTile)
         {
             Dictionary<Item, List<Direction>> pathByItems = new Dictionary<Item, List<Direction>>();
 
-            foreach (Item item in GameData.MyQuests.Select(q => q.Item))
-            {
-                ResetVisitedStatus();
+            List<Item> myQuestItems = GameData.MyQuests.Select(q => q.Item).ToList();
 
-                var pathToItem = CalculateMoveToQuestItem(startTile, item).ToList();
+            foreach (Item item in myQuestItems)
+            {
+                (Tile endTile, IReadOnlyList<Direction> pathToItem) = CalculateMoveToQuestItem(startTile, item);
                 if (pathToItem.Any())
-                    pathByItems[item] = pathToItem;
+                    pathByItems[item] = pathToItem.ToList();
             }
 
             if (pathByItems.Count == 0)
             {
-                Console.Error.WriteLine($"Player can't reach any item from {GameData.MyPlayer.Position.Coordinate}");
-                return Array.Empty<Direction>();
+                return (startTile, Array.Empty<Direction>());
             }
 
             if (pathByItems.Count == 1)
             {
-                Console.Error.WriteLine($"Player can reach only one item {pathByItems.First().Key}");
-                return pathByItems.First().Value;
+                Tile endTile = pathByItems.First().Key.Tile;
+                return (endTile, pathByItems.First().Value);
             }
 
+            if (pathByItems.Count == 2)
+            {
+                Item firstItem = pathByItems.First().Value.Count <= pathByItems.Last().Value.Count
+                    ? pathByItems.First().Key
+                    : pathByItems.Last().Key;
+                Item secondItem = pathByItems.First().Value.Count > pathByItems.Last().Value.Count
+                    ? pathByItems.First().Key
+                    : pathByItems.Last().Key;
 
+                List<Direction> pathToItems = new List<Direction>();
+                pathToItems.AddRange(pathByItems[firstItem]);
+
+                Tile newStartTile = firstItem.Tile;
+
+                (Tile fake, IReadOnlyList<Direction> pathToSecondItem) = CalculateMoveToQuestItem(newStartTile, secondItem);
+                pathToItems.AddRange(pathToSecondItem);
+
+                Tile endTile = secondItem.Tile;
+
+                return (endTile, pathToItems);
+            }
+
+            throw new NotSupportedException();
             Console.Error.WriteLine($"Player can reach more than one item: {pathByItems.Count}");
 
             int shortestPath = Constants.MaxStepsCount;
@@ -270,26 +293,24 @@ namespace CodingGame.XmasRush
             return path;
         }
 
-        static IReadOnlyList<Direction> CalculateMoveToQuestItem(Tile startTile, Item item)
+        static (Tile endTile, IReadOnlyList<Direction> path) CalculateMoveToQuestItem(Tile startTile, Item item)
         {
             Func<Tile, bool> searchPredicate = t => t.HasMyQuestItem && t.Item.Name == item.Name;
 
-            var path = BuildPath(startTile, searchPredicate);
-
-            return path;
+            return BuildPath(startTile, searchPredicate);
         }
 
-        static IReadOnlyList<Direction> CalculateMoveToBorder(Tile startTile)
+        static (Tile endTile, IReadOnlyList<Direction> path) CalculateMoveToBorder(Tile startTile)
         {
             Func<Tile, bool> searchPredicate = t => t.IsBorder();
 
-            var path = BuildPath(startTile, searchPredicate);
-
-            return path;
+            return BuildPath(startTile, searchPredicate);
         }
 
-        static IReadOnlyList<Direction> BuildPath(Tile startTile, Func<Tile, bool> searchPredicate)
+        static (Tile endTile, IReadOnlyList<Direction> path) BuildPath(Tile startTile, Func<Tile, bool> searchPredicate)
         {
+            ResetVisitedStatus();
+
             Queue<Tile> queue = new Queue<Tile>();
 
             startTile.SetPath(Array.Empty<Direction>());
@@ -299,7 +320,7 @@ namespace CodingGame.XmasRush
             while (queue.TryDequeue(out Tile tile))
             {
                 if (searchPredicate(tile))
-                    return tile.PathForMove;
+                    return (tile, tile.PathForMove);
 
                 foreach (Tile sibling in tile.NotVisitedSiblings)
                 {
@@ -315,7 +336,7 @@ namespace CodingGame.XmasRush
                 }
             }
 
-            return Array.Empty<Direction>();
+            return (startTile, Array.Empty<Direction>());
         }
 
         static void AddReversePath(this List<Direction> path)
@@ -804,6 +825,7 @@ namespace CodingGame.XmasRush
             }
 
             GameData.MyQuests = GameData.Quests.Where(i => i.PlayerId == Constants.MyPlayerId).ToList();
+
             GameData.OpponentQuests = GameData.Quests.Where(i => i.PlayerId == Constants.OpponentId).ToList();
         }
     }
