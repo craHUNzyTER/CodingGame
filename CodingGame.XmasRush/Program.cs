@@ -64,7 +64,7 @@ namespace CodingGame.XmasRush
             Coordinate myPlayerCoordinate = GameData.MyPlayer.Position.Coordinate;
             bool isQuestItemInMyHand = items.Any(x => x.IsInMyHand());
 
-            if (!myPlayerCoordinate.IsOnBorder() && !isQuestItemInMyHand)
+            if (!myPlayerCoordinate.IsBorder() && !isQuestItemInMyHand)
             {
                 return GetPushIdAndDirectionToBorder(myPlayerCoordinate);
             }
@@ -73,7 +73,7 @@ namespace CodingGame.XmasRush
             {
                 Item itemInMyHand = items.First(x => x.IsInMyHand());
 
-                if (myPlayerCoordinate.IsOnBorder())
+                if (myPlayerCoordinate.IsBorder())
                 {
                     return CalculatePushOfMyItemFromMyHandToMyPlayer(myPlayerCoordinate);
                 }
@@ -225,8 +225,15 @@ namespace CodingGame.XmasRush
             if (startTile.NotVisitedSiblings.Any())
             {
                 var path = CalculateMoveToQuestItem(startTile).ToList();
-                path.AddReversePath();
+                if (path.Any())
+                {
+                    path.AddReversePath();
+                    return (true, path);
+                }
 
+                ResetVisitedStatus();
+
+                path = CalculateMoveToBorder(startTile).ToList();
                 return (true, path);
             }
 
@@ -236,6 +243,15 @@ namespace CodingGame.XmasRush
         static IReadOnlyList<Direction> CalculateMoveToQuestItem(Tile startTile)
         {
             Func<Tile, bool> searchPredicate = t => t.HasMyQuestItem;
+
+            var path = BuildPath(startTile, searchPredicate);
+
+            return path;
+        }
+
+        static IReadOnlyList<Direction> CalculateMoveToBorder(Tile startTile)
+        {
+            Func<Tile, bool> searchPredicate = t => t.IsBorder();
 
             var path = BuildPath(startTile, searchPredicate);
 
@@ -297,6 +313,15 @@ namespace CodingGame.XmasRush
                 return Direction.LEFT;
             else
                 return Direction.RIGHT;
+        }
+
+        static void ResetVisitedStatus()
+        {
+            for (int i = 0; i <= Constants.HighestBorderCoordinate; i++)
+            {
+                for (int j = 0; j <= Constants.HighestBorderCoordinate; j++)
+                    GameData.Map[i, j].MarkAsNotVisited();
+            }
         }
 
         #endregion Move turn
@@ -428,6 +453,11 @@ namespace CodingGame.XmasRush
         public void MarkAsVisited()
         {
             IsVisited = true;
+        }
+
+        public void MarkAsNotVisited()
+        {
+            IsVisited = false;
         }
 
         public void SetPath(IReadOnlyList<Direction> path)
@@ -803,7 +833,7 @@ namespace CodingGame.XmasRush
                 && coordinate.Y == Constants.MyHandCoordinate;
         }
 
-        public static bool IsOnBorder(this Coordinate coordinate)
+        public static bool IsBorder(this Coordinate coordinate)
         {
             return coordinate.IsHorizontalBorder()
                 || coordinate.IsVerticalBorder();
@@ -844,6 +874,11 @@ namespace CodingGame.XmasRush
         #endregion Coordinate
 
         #region Tile
+
+        public static bool IsBorder(this Tile tile)
+        {
+            return tile.Coordinate.IsBorder();
+        }
 
         public static bool IsTopBorder(this Tile tile)
         {
