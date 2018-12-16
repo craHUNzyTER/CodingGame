@@ -224,7 +224,7 @@ namespace CodingGame.XmasRush
 
             if (startTile.NotVisitedSiblings.Any())
             {
-                var path = BuildPath(startTile).ToList();
+                var path = CalculateMoveToQuestItem(startTile).ToList();
                 path.AddReversePath();
 
                 return (true, path);
@@ -233,7 +233,16 @@ namespace CodingGame.XmasRush
             return (false, Array.Empty<Direction>());
         }
 
-        static IReadOnlyList<Direction> BuildPath(Tile startTile)
+        static IReadOnlyList<Direction> CalculateMoveToQuestItem(Tile startTile)
+        {
+            Func<Tile, bool> searchPredicate = t => t.HasMyQuestItem;
+
+            var path = BuildPath(startTile, searchPredicate);
+
+            return path;
+        }
+
+        static IReadOnlyList<Direction> BuildPath(Tile startTile, Func<Tile, bool> searchPredicate)
         {
             Queue<Tile> queue = new Queue<Tile>();
 
@@ -243,7 +252,7 @@ namespace CodingGame.XmasRush
 
             while (queue.TryDequeue(out Tile tile))
             {
-                if (tile.HasMyQuestItem)
+                if (searchPredicate(tile))
                     return tile.PathForMove;
 
                 foreach (Tile sibling in tile.NotVisitedSiblings)
