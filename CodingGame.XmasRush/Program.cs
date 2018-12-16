@@ -192,20 +192,13 @@ namespace CodingGame.XmasRush
             {
                 Item previousPushItem = GameData.PreviousRoundInfos.Single(x => x.TurnNumber == GameData.TurnNumber - 2).SelectedItemForPush;
 
-                if (previousPushItem == null)
-                {
-                    Console.Error.WriteLine($"Item in info wasn't found.");
-                }
-                else
+                if (previousPushItem != null)
                 {
                     if (itemToPush.Name == previousPushItem.Name && itemToPush.Coordinate.X == previousPushItem.Coordinate.X && itemToPush.Coordinate.Y == previousPushItem.Coordinate.Y)
                     {
-                        Console.Error.WriteLine($"Item '{previousPushItem.Name}' wasn't moved.");
-
                         if (itemsOnBoard.Count() > 1)
                         {
                             itemToPush = GetItemClosestToBorder(itemsOnBoard.Where(x => x.Name != previousPushItem.Name));
-                            Console.Error.WriteLine($"Take next one {itemToPush.Name}.");
                         }
                     }
                 }
@@ -224,7 +217,7 @@ namespace CodingGame.XmasRush
 
             if (startTile.NotVisitedSiblings.Any())
             {
-                var path = CalculateMoveToQuestItem(startTile).ToList();
+                var path = CalculateMoveToQuestItems(startTile).ToList();
                 if (path.Any())
                 {
                     path.AddReversePath();
@@ -240,9 +233,46 @@ namespace CodingGame.XmasRush
             return (false, Array.Empty<Direction>());
         }
 
-        static IReadOnlyList<Direction> CalculateMoveToQuestItem(Tile startTile)
+        static IReadOnlyList<Direction> CalculateMoveToQuestItems(Tile startTile)
         {
+            Dictionary<Item, List<Direction>> pathByItems = new Dictionary<Item, List<Direction>>();
+
+            foreach (Item item in GameData.MyQuests.Select(q => q.Item))
+            {
+                ResetVisitedStatus();
+
+                var pathToItem = CalculateMoveToQuestItem(startTile, item).ToList();
+                if (pathToItem.Any())
+                    pathByItems[item] = pathToItem;
+            }
+
+            if (pathByItems.Count == 0)
+            {
+                Console.Error.WriteLine($"Player can't reach any item from {GameData.MyPlayer.Position.Coordinate}");
+                return Array.Empty<Direction>();
+            }
+
+            if (pathByItems.Count == 1)
+            {
+                Console.Error.WriteLine($"Player can reach only one item {pathByItems.First().Key}");
+                return pathByItems.First().Value;
+            }
+
+
+            Console.Error.WriteLine($"Player can reach more than one item: {pathByItems.Count}");
+
+            int shortestPath = Constants.MaxStepsCount;
+
             Func<Tile, bool> searchPredicate = t => t.HasMyQuestItem;
+
+            var path = BuildPath(startTile, searchPredicate);
+
+            return path;
+        }
+
+        static IReadOnlyList<Direction> CalculateMoveToQuestItem(Tile startTile, Item item)
+        {
+            Func<Tile, bool> searchPredicate = t => t.HasMyQuestItem && t.Item.Name == item.Name;
 
             var path = BuildPath(startTile, searchPredicate);
 
@@ -356,7 +386,7 @@ namespace CodingGame.XmasRush
         public static List<Item> OpponentItems { get; set; }
 
         public static RoundInfo CurrentRoundInfo { get; set; }
-        public static List<RoundInfo> PreviousRoundInfos { get;  private set; }
+        public static List<RoundInfo> PreviousRoundInfos { get; private set; }
 
         public static List<Quest> Quests { get; set; }
         public static List<Quest> MyQuests { get; set; }
@@ -605,15 +635,12 @@ namespace CodingGame.XmasRush
 
             // Read players' info
             ParsePlayersInfo();
-            //Console.Error.WriteLine($"My coordinate: {GameData.MyPlayer.Tile.Coordinate}");
 
             // Read items
             ParseItems();
-            //Console.Error.WriteLine($"Items count: {GameData.Items.Count}");
 
             // Read quests
             ParseQuests();
-            //Console.Error.WriteLine($"Quests count: {GameData.Quests.Count}");
         }
 
         static void ParseTurnType()
@@ -686,13 +713,6 @@ namespace CodingGame.XmasRush
                             tile.AddSibling(leftSibling);
                     }
                 }
-
-                //Tile testTile = GameData.Map[i, 2];
-                //Console.Error.WriteLine($"Siblings for tile: {testTile}");
-                //foreach(Tile sibling in testTile.Siblings)
-                //{
-                //    Console.Error.WriteLine($"Sibling: {sibling.Coordinate}");
-                //}
             }
         }
 
@@ -708,7 +728,6 @@ namespace CodingGame.XmasRush
             Tile myTileInHand = new Tile(new Coordinate(-1, -1), myTilePaths);
 
             GameData.MyPlayer = new Player(myQuestsCount, myPosition, myTileInHand);
-            //Console.Error.WriteLine($"My position: {GameData.MyPlayer.Position}");
 
             _inputs = Console.ReadLine().Split(' ');
             int opponentQuestsCount = int.Parse(_inputs[0]); // the total number of quests for a player (hidden and revealed)
@@ -720,7 +739,6 @@ namespace CodingGame.XmasRush
             Tile opponentTileInHand = new Tile(new Coordinate(-2, -2), opponentTilePaths);
 
             GameData.OpponentPlayer = new Player(opponentQuestsCount, opponentPosition, opponentTileInHand);
-            //Console.Error.WriteLine($"Opponent position: {GameData.OpponentPlayer.Position}");
         }
 
         static void ParseItems()
@@ -750,12 +768,10 @@ namespace CodingGame.XmasRush
                     if (itemCoordinate.IsInMyHand())
                     {
                         itemTile = GameData.MyPlayer.TileInHand;
-                        Console.Error.WriteLine($"I carry in hands: {item}");
                     }
                     else
                     {
                         itemTile = GameData.OpponentPlayer.TileInHand;
-                        Console.Error.WriteLine($"Opponent carries in hands: {item}");
                     }
                 }
 
