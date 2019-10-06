@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 /**
 * Deliver more ore to hq (left side of the map) than your opponent. Use radars to find ore but beware of traps!
@@ -36,10 +37,117 @@ namespace CodingGame
     {
         public static void Play()
         {
-            for (int i = 0; i < 5; i++)
+            DeliverOre();
+
+            BuryRadar();
+
+            RequestRadar();
+
+            //RequestTrap();
+
+            DigVeinCells();
+
+            DigUnknownCells();
+
+            DefaultMove();
+        }
+
+        private static void DeliverOre()
+        {
+            foreach (var robot in Helpers.GetRobotsWithOre())
             {
-                GameData.OutputCommands[i] = Output.Wait();
+                GameData.OutputCommands[robot.Id] = Output.Move(Constants.HeadquartersX, robot.Coordinate.Y);
             }
+        }
+
+        private static void RequestRadar()
+        {
+            var robotInHq = Helpers.GetRobotInHeadquarters();
+            if (GameData.RadarCooldown == 0 && robotInHq != null)
+            {
+                GameData.OutputCommands[robotInHq.Id] = Output.RequestRadar();
+            }
+        }
+
+        private static void RequestTrap()
+        {
+            var robotInHq = Helpers.GetRobotInHeadquarters();
+            if (GameData.TrapCooldown == 0 && robotInHq != null)
+            {
+                GameData.OutputCommands[robotInHq.Id] = Output.RequestTrap();
+            }
+        }
+
+        private static void BuryRadar()
+        {
+            foreach (var robot in Helpers.GetRobotsWithRadar())
+            {
+                GameData.OutputCommands[robot.Id] = Output.Dig(10, robot.Coordinate.Y);
+            }
+        }
+
+        private static void DigVeinCells()
+        {
+            if (GameData.VeinCells.Count == 0)
+                return;
+
+            var notAssignedRobots = Helpers.GetNotAssignedRobots();
+            for (int i = 0; i < notAssignedRobots.Count; i++)
+            {
+                if (GameData.VeinCells.Count > i)
+                {
+                    var coordinate = GameData.VeinCells[i].Coordinate;
+                    GameData.OutputCommands[notAssignedRobots[i].Id] = Output.Dig(coordinate.X, coordinate.Y);
+                }
+            }
+        }
+
+        private static void DigUnknownCells()
+        {
+
+        }
+
+        private static void DefaultMove()
+        {
+            foreach (var robot in Helpers.GetNotAssignedRobots())
+            {
+                GameData.OutputCommands[robot.Id] = Output.Wait();
+            }
+        }
+    }
+
+    static class Helpers
+    {
+        public static List<Robot> GetNotAssignedRobots()
+        {
+            var notAssignedRobots = GameData.MyRobots
+                .Where(r => !Output.HasAssignedCommand(r.Id))
+                .ToList();
+
+            Console.Error.WriteLine($"Not assigned robots: {notAssignedRobots.Count}.");
+
+            return notAssignedRobots;
+        }
+
+        public static List<Robot> GetRobotsWithOre()
+        {
+            return GetNotAssignedRobots()
+                .Where(r => r.CarryOre)
+                .ToList();
+        }
+
+        public static List<Robot> GetRobotsWithRadar()
+        {
+            return GetNotAssignedRobots()
+                .Where(r => r.CarryRadar)
+                .ToList();
+        }
+
+        public static Robot GetRobotInHeadquarters()
+        {
+            return GetNotAssignedRobots()
+                .Where(r => r.Coordinate.X == Constants.HeadquartersX)
+                .FirstOrDefault();
         }
     }
 
@@ -52,13 +160,21 @@ namespace CodingGame
 
         public static void InitializeTurn()
         {
+            Cells = new List<Cell>(Constants.MapHeight * Constants.MapWidth);
+
             MyRobots = new List<Robot>(Constants.OneTeamRobotsCount);
             OpponentRobots = new List<Robot>(Constants.OneTeamRobotsCount);
 
             OutputCommands = new string[Constants.OneTeamRobotsCount];
         }
 
+        public static int RadarCooldown { get; set; }
+        public static int TrapCooldown { get; set; }
+
         public static Cell[,] Map { get; set; }
+        public static List<Cell> Cells { get; set; }
+        public static List<Cell> VeinCells { get; set; }
+
         public static List<Robot> MyRobots { get; set; }
         public static List<Robot> OpponentRobots { get; set; }
 
@@ -149,6 +265,10 @@ namespace CodingGame
         #endregion Constructors and overriden methods
 
         public bool IsMine => _type == EntityType.MyRobot;
+
+        public bool CarryOre => Item == EntityType.Ore;
+
+        public bool CarryRadar => Item == EntityType.Radar;
     }
 
     class Cell
@@ -172,6 +292,8 @@ namespace CodingGame
         }
 
         #endregion Constructors and overriden methods
+
+        public bool HasOre => OreCount > 0;
     }
 
     enum EntityType
@@ -191,6 +313,8 @@ namespace CodingGame
     {
         public static int MapWidth = 30;
         public static int MapHeight = 15;
+        public static int HeadquartersX = 0;
+
         public static int OneTeamRobotsCount = 5;
     }
 
@@ -229,16 +353,20 @@ namespace CodingGame
                     int hole = int.Parse(_inputs[2 * x + 1]);// 1 if cell has a hole
                     bool hasHole = hole == 1;
 
-
-                    GameData.Map[y, x] = new Cell(new Coordinate(x, y), oreCount, hasHole);
+                    var cell = new Cell(new Coordinate(x, y), oreCount, hasHole);
+                    GameData.Map[y, x] = cell;
+                    GameData.Cells.Add(cell);
                 }
             }
+
+            GameData.VeinCells = GameData.Cells.Where(c => c.HasOre).ToList();
+            Console.Error.WriteLine($"Vein cells count: {GameData.VeinCells.Count}");
 
             for (int x = 0; x < 1; x++)
             {
                 for (int y = 0; y < 1; y++)
                 {
-                    Console.Error.WriteLine($"Parsed cell: {GameData.Map[x, y]}");
+                    //Console.Error.WriteLine($"Parsed cell: {GameData.Map[x, y]}");
                 }
             }
         }
@@ -247,8 +375,8 @@ namespace CodingGame
         {
             _inputs = Console.ReadLine().Split(' ');
             int entityCount = int.Parse(_inputs[0]); // number of entities visible to you
-            int radarCooldown = int.Parse(_inputs[1]); // turns left until a new radar can be requested
-            int trapCooldown = int.Parse(_inputs[2]); // turns left until a new trap can be requested
+            GameData.RadarCooldown = int.Parse(_inputs[1]); // turns left until a new radar can be requested
+            GameData.TrapCooldown = int.Parse(_inputs[2]); // turns left until a new trap can be requested
             for (int i = 0; i < entityCount; i++)
             {
                 _inputs = Console.ReadLine().Split(' ');
@@ -270,7 +398,7 @@ namespace CodingGame
                     else
                         GameData.OpponentRobots.Add(robot);
 
-                    Console.Error.WriteLine($"Parsed robot: {robot}");
+                    //Console.Error.WriteLine($"Parsed robot: {robot}");
                 }
             }
         }
@@ -299,6 +427,21 @@ namespace CodingGame
         private static string Request(string item)
         {
             return "REQUEST " + item;
+        }
+
+        public static string Move(int x, int y)
+        {
+            return $"MOVE {x} {y}";
+        }
+
+        public static string Dig(int x, int y)
+        {
+            return $"DIG {x} {y}";
+        }
+
+        public static bool HasAssignedCommand(int robotId)
+        {
+            return !string.IsNullOrEmpty(GameData.OutputCommands[robotId]);
         }
 
         public static void Print()
