@@ -25,10 +25,20 @@ namespace CodingGame
 
                 Input.ParseTurn();
 
-                for (int i = 0; i < 5; i++)
-                {
-                    Console.WriteLine("WAIT"); // WAIT|MOVE x y|DIG x y|REQUEST item
-                }
+                Game.Play();
+
+                Output.Print();
+            }
+        }
+    }
+
+    static class Game
+    {
+        public static void Play()
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                GameData.OutputCommands[i] = Output.Wait();
             }
         }
     }
@@ -42,13 +52,17 @@ namespace CodingGame
 
         public static void InitializeTurn()
         {
-            MyRobots = new List<Robot>();
-            OpponentRobots = new List<Robot>();
+            MyRobots = new List<Robot>(Constants.OneTeamRobotsCount);
+            OpponentRobots = new List<Robot>(Constants.OneTeamRobotsCount);
+
+            OutputCommands = new string[Constants.OneTeamRobotsCount];
         }
 
         public static Cell[,] Map { get; set; }
         public static List<Robot> MyRobots { get; set; }
         public static List<Robot> OpponentRobots { get; set; }
+
+        public static string[] OutputCommands { get; set; } // output for every turn
     }
 
     class Coordinate
@@ -177,6 +191,7 @@ namespace CodingGame
     {
         public static int MapWidth = 30;
         public static int MapHeight = 15;
+        public static int OneTeamRobotsCount = 5;
     }
 
     #region Read input data
@@ -262,4 +277,36 @@ namespace CodingGame
     }
 
     #endregion Read input data
+
+    // WAIT|MOVE x y|DIG x y|REQUEST item
+    static class Output
+    {
+        public static string Wait()
+        {
+            return "WAIT";
+        }
+
+        public static string RequestRadar()
+        {
+            return Request("RADAR");
+        }
+
+        public static string RequestTrap()
+        {
+            return Request("TRAP");
+        }
+
+        private static string Request(string item)
+        {
+            return "REQUEST " + item;
+        }
+
+        public static void Print()
+        {
+            foreach (var command in GameData.OutputCommands)
+            {
+                Console.WriteLine(command);
+            }
+        }
+    }
 }
