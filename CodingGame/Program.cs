@@ -62,6 +62,9 @@ namespace CodingGame
 
         private static void RequestRadar()
         {
+            if (GameData.BuriedRadars.Count >= Constants.RadarCoordinates.Count)
+                return;
+
             var robotInHq = Helpers.GetRobotInHeadquarters();
             if (GameData.RadarCooldown == 0 && robotInHq != null)
             {
@@ -82,7 +85,20 @@ namespace CodingGame
         {
             foreach (var robot in Helpers.GetRobotsWithRadar())
             {
-                GameData.OutputCommands[robot.Id] = Output.Dig(10, robot.Coordinate.Y);
+                var alreadyBuriedCoordinates = GameData.BuriedRadars
+                        .Select(r => r.Coordinate)
+                        .ToList();
+
+                var coordinateToBury = Constants.RadarCoordinates
+                    .Except(alreadyBuriedCoordinates)
+                    .FirstOrDefault();
+
+                if (coordinateToBury != null)
+                {
+                    GameData.OutputCommands[robot.Id] = Output.Dig(coordinateToBury.X, coordinateToBury.Y);
+
+                    GameData.BuriedRadars.Add(new Radar(default, coordinateToBury));
+                }
             }
         }
 
@@ -165,6 +181,8 @@ namespace CodingGame
             MyRobots = new List<Robot>(Constants.OneTeamRobotsCount);
             OpponentRobots = new List<Robot>(Constants.OneTeamRobotsCount);
 
+            BuriedRadars = new List<Radar>();
+
             OutputCommands = new string[Constants.OneTeamRobotsCount];
         }
 
@@ -177,6 +195,8 @@ namespace CodingGame
 
         public static List<Robot> MyRobots { get; set; }
         public static List<Robot> OpponentRobots { get; set; }
+
+        public static List<Radar> BuriedRadars { get; set; }
 
         public static string[] OutputCommands { get; set; } // output for every turn
     }
@@ -271,6 +291,45 @@ namespace CodingGame
         public bool CarryRadar => Item == EntityType.Radar;
     }
 
+    class Radar
+    {
+        public int Id { get; private set; }
+        public Coordinate Coordinate { get; private set; }
+
+        #region Constructors and overriden methods
+
+        public Radar(int id, Coordinate coordinate)
+        {
+            Id = id;
+            Coordinate = coordinate;
+        }
+
+        public override string ToString()
+        {
+            return $"Radar. Id={Id}. {Coordinate}";
+        }
+
+        public override bool Equals(object obj)
+        {
+            Radar other = obj as Radar;
+
+            if (ReferenceEquals(null, obj))
+                return false;
+
+            if (Id == other.Id)
+                return true;
+
+            return false;
+        }
+
+        public override int GetHashCode()
+        {
+            return 7333 ^ Id.GetHashCode();
+        }
+
+        #endregion Constructors and overriden methods
+    }
+
     class Cell
     {
         public Coordinate Coordinate { get; private set; }
@@ -314,6 +373,21 @@ namespace CodingGame
         public static int MapWidth = 30;
         public static int MapHeight = 15;
         public static int HeadquartersX = 0;
+
+        public static List<Coordinate> RadarCoordinates = new List<Coordinate>
+        {
+            new Coordinate(5, 3),
+            new Coordinate(5, 11),
+            new Coordinate(8, 7),
+            new Coordinate(12, 3),
+            new Coordinate(12, 11),
+            new Coordinate(15, 7),
+            new Coordinate(19, 3),
+            new Coordinate(19, 11),
+            new Coordinate(22, 7),
+            new Coordinate(26, 3),
+            new Coordinate(26, 11)
+        };
 
         public static int OneTeamRobotsCount = 5;
     }
@@ -399,6 +473,11 @@ namespace CodingGame
                         GameData.OpponentRobots.Add(robot);
 
                     //Console.Error.WriteLine($"Parsed robot: {robot}");
+                }
+                else if (type == EntityType.Radar)
+                {
+                    var radar = new Radar(id, coordinate);
+                    GameData.BuriedRadars.Add(radar);
                 }
             }
         }
