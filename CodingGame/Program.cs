@@ -232,7 +232,7 @@ namespace CodingGame
 
         public Robot(int id, EntityType type, Coordinate coordinate, EntityType item)
         {
-            Id = id;
+            Id = id < 5 ? id : id - 5;
             _type = type;
             Coordinate = coordinate;
             Item = item;
