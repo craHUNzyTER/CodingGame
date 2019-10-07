@@ -47,8 +47,6 @@ namespace CodingGame
 
             DigVeinCells();
 
-            DigUnknownCells();
-
             DefaultMove();
         }
 
@@ -69,6 +67,7 @@ namespace CodingGame
             if (GameData.RadarCooldown == 0 && robotInHq != null)
             {
                 GameData.OutputCommands[robotInHq.Id] = Output.RequestRadar();
+                GameData.IsRadarRequested = true;
             }
         }
 
@@ -85,13 +84,7 @@ namespace CodingGame
         {
             foreach (var robot in Helpers.GetRobotsWithRadar())
             {
-                var alreadyBuriedCoordinates = GameData.ExistingRadars
-                    .Select(r => r.Coordinate)
-                    .ToList();
-
-                var coordinateToBury = Constants.RadarCoordinates
-                    .Except(alreadyBuriedCoordinates)
-                    .FirstOrDefault();
+                var coordinateToBury = Helpers.GetClosestCoordinateToBuryRadar(robot);
 
                 if (coordinateToBury != null)
                 {
@@ -117,22 +110,30 @@ namespace CodingGame
             }
         }
 
-        private static void DigUnknownCells()
-        {
-
-        }
-
         private static void DefaultMove()
         {
             var closestRobotToHq = Helpers.GetClosestAndNotAssignedRobotToHeadquarters();
-            if (closestRobotToHq != null)
+            if (!GameData.IsRadarRequested && GameData.RadarCooldown <= 1 && closestRobotToHq != null)
             {
                 GameData.OutputCommands[closestRobotToHq.Id] = Output.MoveToHeadquarters(closestRobotToHq);
             }
 
             foreach (var robot in Helpers.GetNotAssignedRobots())
             {
-                GameData.OutputCommands[robot.Id] = Output.Wait();
+                if (robot.InHeadquarters)
+                {
+                    GameData.OutputCommands[robot.Id] = Output.Move(robot.Coordinate.X + 2, robot.Coordinate.Y);
+                    continue;
+                }
+
+                var unknownCellToDig = Helpers.FindNotDiggedAdjacentCell(robot);
+                if (unknownCellToDig != null)
+                {
+                    GameData.OutputCommands[robot.Id] = Output.Dig(unknownCellToDig.Coordinate.X, unknownCellToDig.Coordinate.Y);
+                    continue;
+                }
+
+                GameData.OutputCommands[robot.Id] = Output.Move(robot.Coordinate.X + 3, robot.Coordinate.Y);
             }
         }
     }
@@ -167,7 +168,7 @@ namespace CodingGame
         public static Robot GetRobotInHeadquarters()
         {
             return GetNotAssignedRobots()
-                .FirstOrDefault(r => r.Coordinate.X == Constants.HeadquartersX);
+                .FirstOrDefault(r => r.InHeadquarters);
         }
 
         public static List<Cell> GetClosestVeinCellsToRobot(Robot robot)
@@ -202,7 +203,57 @@ namespace CodingGame
                 .First();
         }
 
-        public static int CalculateDistance(Coordinate first, Coordinate second)
+        public static Coordinate GetClosestCoordinateToBuryRadar(Robot robot)
+        {
+            var alreadyBuriedCoordinates = GameData.ExistingRadars
+                    .Select(r => r.Coordinate)
+                    .ToList();
+
+            var coordinatesToBury = Constants.RadarCoordinates
+                .Except(alreadyBuriedCoordinates)
+                .ToList();
+
+            if (coordinatesToBury.Count == 0)
+                return null;
+
+            return coordinatesToBury
+                .GroupBy(c => CalculateDistance(robot.Coordinate, c))
+                .OrderBy(gr => gr.Key)
+                .First()
+                .Select(gr => gr)
+                .First();
+        }
+
+        public static Cell FindNotDiggedAdjacentCell(Robot robot)
+        {
+            var x = robot.Coordinate.X;
+            var y = robot.Coordinate.Y;
+            var map = GameData.Map;
+
+            if (x > 1 && x < 29 && map[y, x - 1].HasNotHole)
+            {
+                return map[y, x - 1];
+            }
+
+            if (x > 1 && x < 29 && map[y, x + 1].HasNotHole)
+            {
+                return map[y, x + 1];
+            }
+
+            if (y > 0 && x < 14 && map[y - 1, x].HasNotHole)
+            {
+                return map[y - 1, x];
+            }
+
+            if (y > 0 && x < 14 && map[y + 1, x].HasNotHole)
+            {
+                return map[y + 1, x];
+            }
+
+            return null;
+        }
+
+        private static int CalculateDistance(Coordinate first, Coordinate second)
         {
             return Math.Abs(first.X - second.X) + Math.Abs(first.Y - second.Y);
         }
@@ -233,10 +284,12 @@ namespace CodingGame
             OpponentRobots = new List<Robot>(Constants.OneTeamRobotsCount);
 
             ExistingRadars = new List<Radar>();
+            IsRadarRequested = false;
 
             OutputCommands = new string[Constants.OneTeamRobotsCount];
         }
 
+        public static bool IsRadarRequested { get; set; }
         public static int RadarCooldown { get; set; }
         public static int TrapCooldown { get; set; }
 
@@ -340,6 +393,8 @@ namespace CodingGame
         public bool CarryOre => Item == EntityType.Ore;
 
         public bool CarryRadar => Item == EntityType.Radar;
+
+        public bool InHeadquarters => Coordinate.X == Constants.HeadquartersX;
     }
 
     public class Radar
@@ -407,6 +462,7 @@ namespace CodingGame
         #endregion Constructors and overriden methods
 
         public bool HasOre => CurrentOreCount > 0;
+        public bool HasNotHole => !HasHole;
 
         public void SetCurrentState(int oreCount, bool hasHole)
         {
@@ -453,15 +509,16 @@ namespace CodingGame
 
         public static List<Coordinate> RadarCoordinates = new List<Coordinate>
         {
-            new Coordinate(5, 3),
-            new Coordinate(5, 11),
-            new Coordinate(8, 7),
-            new Coordinate(12, 3),
-            new Coordinate(12, 11),
-            new Coordinate(15, 7),
-            new Coordinate(19, 3),
-            new Coordinate(19, 11),
-            new Coordinate(22, 7),
+            new Coordinate(6, 3),
+            new Coordinate(6, 11),
+
+            new Coordinate(11, 7),
+
+            new Coordinate(16, 3),
+            new Coordinate(16, 11),
+
+            new Coordinate(21, 7),
+
             new Coordinate(26, 3),
             new Coordinate(26, 11)
         };
@@ -512,7 +569,7 @@ namespace CodingGame
                 .Where(c => c.HasOre)
                 .OrderBy(c => c.Coordinate.X)
                 .ToList();
-            Console.Error.WriteLine($"Vein cells count: {GameData.VeinCells.Count}");
+            //Console.Error.WriteLine($"Vein cells count: {GameData.VeinCells.Count}");
 
             for (int x = 0; x < 1; x++)
             {
