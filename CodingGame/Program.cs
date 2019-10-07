@@ -433,7 +433,10 @@ namespace CodingGame
                 }
             }
 
-            GameData.VeinCells = GameData.Cells.Where(c => c.HasOre).ToList();
+            GameData.VeinCells = GameData.Cells
+                .Where(c => c.HasOre)
+                .OrderBy(c => c.Coordinate.X)
+                .ToList();
             Console.Error.WriteLine($"Vein cells count: {GameData.VeinCells.Count}");
 
             for (int x = 0; x < 1; x++)
