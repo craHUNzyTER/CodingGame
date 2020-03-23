@@ -32,6 +32,14 @@ namespace CodingGame
         }
 
         public static Cell[,] Map { get; set; }
+
+        public static int MyLife { get; set; }
+        public static int OpponentLife { get; set; }
+
+        public static int TorpedoCooldown { get; set; }
+        public static int SonarCooldown { get; set; }
+        public static int SilenceCooldown { get; set; }
+        public static int MineCooldown { get; set; }
     }
 
     public class Coordinate
@@ -118,14 +126,17 @@ namespace CodingGame
         public static void ParseTurn()
         {
             _inputs = Console.ReadLine().Split(' ');
-            int x = int.Parse(_inputs[0]);
-            int y = int.Parse(_inputs[1]);
-            int myLife = int.Parse(_inputs[2]);
-            int oppLife = int.Parse(_inputs[3]);
-            int torpedoCooldown = int.Parse(_inputs[4]);
-            int sonarCooldown = int.Parse(_inputs[5]);
-            int silenceCooldown = int.Parse(_inputs[6]);
-            int mineCooldown = int.Parse(_inputs[7]);
+
+            int myCurrentX = int.Parse(_inputs[0]);
+            int myCurrentY = int.Parse(_inputs[1]);
+
+            GameData.MyLife = int.Parse(_inputs[2]);
+            GameData.OpponentLife = int.Parse(_inputs[3]);
+            GameData.TorpedoCooldown = int.Parse(_inputs[4]);
+            GameData.SonarCooldown = int.Parse(_inputs[5]);
+            GameData.SilenceCooldown = int.Parse(_inputs[6]);
+            GameData.MineCooldown = int.Parse(_inputs[7]);
+
             string sonarResult = Console.ReadLine();
             string opponentOrders = Console.ReadLine();
         }
