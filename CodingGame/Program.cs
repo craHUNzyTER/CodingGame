@@ -12,15 +12,28 @@ namespace CodingGame
 
             Input.ParseSizeOfMapAndMyId();
 
-            Console.WriteLine("7 7");
+            var startLocation = new Coordinate(7, 7);
+            Output.PrintStartLocation(startLocation);
 
             // game loop
             while (true)
             {
+                GameData.InitializeTurn();
+
                 Input.ParseTurn();
 
-                Console.WriteLine("MOVE N TORPEDO");
+                Game.Play();
+
+                Output.PrintCommand();
             }
+        }
+    }
+
+    public static class Game
+    {
+        public static void Play()
+        {
+            Output.AppendMove(Direction.N, System.TORPEDO);
         }
     }
 
@@ -29,6 +42,11 @@ namespace CodingGame
         public static void InitializeGame()
         {
             Map = new Cell[Constants.MapWidth, Constants.MapHeight];
+        }
+
+        public static void InitializeTurn()
+        {
+            OutputCommand = default;
         }
 
         public static Cell[,] Map { get; set; }
@@ -40,6 +58,8 @@ namespace CodingGame
         public static int SonarCooldown { get; set; }
         public static int SilenceCooldown { get; set; }
         public static int MineCooldown { get; set; }
+
+        public static string OutputCommand { get; set; }
     }
 
     public class Coordinate
@@ -100,6 +120,22 @@ namespace CodingGame
         }
 
         #endregion Constructors and overriden methods     
+    }
+
+    public enum Direction
+    {
+        N,
+        W,
+        S,
+        E
+    }
+
+    public enum System
+    {
+        TORPEDO,
+        SONAR,
+        SILENCE,
+        MINE
     }
 
     static class Constants
@@ -166,4 +202,35 @@ namespace CodingGame
     }
 
     #endregion Read input data
+
+    public static class Output
+    {
+        public static void AppendMove(Direction direction, System systemToCharge)
+        {
+            var command = $"MOVE {direction} {systemToCharge}";
+            AppendCommand(command);
+        }
+
+        public static void PrintStartLocation(Coordinate coordinate)
+        {
+            Console.WriteLine($"{coordinate.X} {coordinate.Y}");
+        }
+
+        public static void PrintCommand()
+        {
+            Console.WriteLine(GameData.OutputCommand);
+        }
+
+        private static void AppendCommand(string command)
+        {
+            if (string.IsNullOrWhiteSpace(GameData.OutputCommand))
+            {
+                GameData.OutputCommand = command;
+            }
+            else
+            {
+                GameData.OutputCommand += "|" + command;
+            }
+        }
+    }
 }
